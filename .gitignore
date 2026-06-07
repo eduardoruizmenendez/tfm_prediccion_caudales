@@ -21,3 +21,6 @@ data/
 *.csv
 *.json
 *.nc
+
+# tests
+/tests
