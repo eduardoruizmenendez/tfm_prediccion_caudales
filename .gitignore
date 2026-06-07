@@ -1,0 +1,21 @@
+# Entornos virtuales
+.venv/
+venv/
+env/
+tfm_env/
+
+# Archivos temporales de Python
+__pycache__/
+*.pyc
+
+# Carpetas de checkpoints de Jupyter
+.ipynb_checkpoints/
+
+# Claves
+Euskadi Open Meteo/
+.env
+
+# Datos pesados
+data/
+*.csv
+*.json
