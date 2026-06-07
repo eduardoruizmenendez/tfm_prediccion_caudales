@@ -20,3 +20,4 @@ Euskadi Open Meteo/
 data/
 *.csv
 *.json
+*.nc
