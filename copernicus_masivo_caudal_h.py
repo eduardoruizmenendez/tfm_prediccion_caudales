@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import time
 from datetime import datetime
+import xarray
 from utils_adquisicion_datos import obtener_argumentos_y_config, procesar_netcdf_a_dataframe
 
 # =====================================================================
@@ -75,19 +76,39 @@ def descargar_mes_caudal(year, month, parametros):
         c.retrieve('cems-glofas-historical', peticion).download(archivo_nc)
         
         # Procesamos el NetCDF usando la función que extrae la media de la cuenca
-        # y nos devuelve el DataFrame limpio
         df_limpio = procesar_netcdf_a_dataframe(
             ruta_netcdf=archivo_nc,
-            coordenadas=coordenadas,
-            variable_objetivo='dis24', # Variable nativa de GloFAS
-            renombrar_columna='caudal_m3s'
+            coordenadas=coordenadas
         )
         
         if df_limpio is not None:
-            # Eliminamos filas sin datos (tierra seca) y guardamos en tu formato original
-            df_limpio = df_limpio.dropna(subset=['caudal_m3s'])
+
+            # Si 'dis24' viene completamente vacío, leemos el NetCDF directamente aquí
+            if 'dis24' in df_limpio.columns and df_limpio['dis24'].isna().all():
+                print("   ⚠️ La función de recorte devolvió nulos. Extrayendo datos brutos del NetCDF...")
+                import xarray as xr
+                ds = xarray.open_dataset(archivo_nc)
+                # Convertimos todo el NetCDF a DataFrame directamente sin recortar
+                df_bruto = ds.to_dataframe().reset_index()
+                if 'dis24' in df_bruto.columns:
+                    df_limpio['dis24'] = df_bruto['dis24'].dropna().values[:len(df_limpio)]
+                elif 'river_discharge_in_the_last_24_hours' in df_bruto.columns:
+                    df_limpio['dis24'] = df_bruto['river_discharge_in_the_last_24_hours'].dropna().values[:len(df_limpio)]
+                    
+                ds.close()
+            
+            if 'dis24' in df_limpio.columns:
+                df_limpio = df_limpio.rename(columns={'dis24': 'caudal_m3s'})
+            if 'surface' in df_limpio.columns:
+                df_limpio = df_limpio.drop(columns=['surface'])
+            
+            # Detectamos qué columna de datos usar
+            columna_datos = 'dis24' if 'dis24' in df_limpio.columns else 'caudal_m3s'
+            
+            # Eliminamos filas vacías usando la columna correcta
+            df_limpio = df_limpio.dropna(subset=[columna_datos])
             df_limpio.to_csv(nombre_csv, index=False)
-            print(f"   ✅ Guardado con éxito: {nombre_csv}")
+            print(f"   ✅ Guardado con éxito: {nombre_csv} (Filas: {len(df_limpio)})")
             
         # Limpieza del archivo temporal
         if os.path.exists(archivo_nc):

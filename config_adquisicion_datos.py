@@ -14,7 +14,7 @@ CONFIGURACION_CUENCAS = {
         "prefijo_archivos": "urumea",
         
         # 1. Parámetros Copernicus (ERA5-Land y GloFAS)
-        "coor_copernicus": [43.35, -2.05, 43.10, -1.75], 
+        "coor_copernicus": [43.45, -2.15, 43.00, -1.65], 
         "puntos_openmeteo": {
             "Cabecera": (43.15, -1.91),
             "Tramo_Medio": (43.26, -1.97),
