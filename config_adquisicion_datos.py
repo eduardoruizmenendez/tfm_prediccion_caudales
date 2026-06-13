@@ -2,19 +2,13 @@
 # CONFIGURACIÓN CENTRALIZADA MULTI-API PARA EL PIPELINE HIDROLÓGICO
 # =====================================================================
 
-AEMET_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJlZHVhcmRvcnVpem1lbmVuZGV6QGdtYWlsLmNvbSIsImp0aSI6ImVhNDJmOWFiLTUwMTYtNDExMi1iZGU2LWRiNTM3ZTNiOWNkOSIsImlzcyI6IkFFTUVUIiwiaWF0IjoxNzc2MDEzOTQxLCJ1c2VySWQiOiJlYTQyZjlhYi01MDE2LTQxMTItYmRlNi1kYjUzN2UzYjljZDkiLCJyb2xlIjoiIn0.gG2YSKhKkF5gy6hk0ePpbjoR7uIqvJz72EK-g0SD1Vg"
-
-EUSKALMET_API_KEY = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC0v4Os3dUbL4zknDO5yab1JfKqfLtpy91Qt/Ci/dxR+lyC4ZiNpaMFn3eyfGOLuOKRmGD8OTCcbW9Ngyb9nP1sdCf3vjdBH2IAPlt91s9+FgwbVJ2k7B3toSjsuG7JKnHTRAfqffj4M8MHLzYbkDdfTQo8n1dd+d06VznwKzgq4BXzDDXasJgU02QF2bKrS4h0xFE+CrxKprF8ELNaD07KWW5aCElhHDnUAK1M3fUoAxGb6FvKDljXF+Y9DGfwaujwUdMJ9HFSypq1AVX9r1CW+LzgCMajX4lonWgQOJ0AZWHu1T5RcaEtp+IH2hzJ6d8D5n4eWdCyRifzjgmDAqnlAgMBAAECggEAPq/bUbWAJxUXRuRb1jg3ZPeb0YBAGaHAaLHazhTAeFgeBLCMUbgcMaOMhoU4mylsvvU70c5d6yrTOu1dNQFhLV+dywEYNchWG2KFJcA+J2srGMGAiUXw3U0THgKbPb6wSobiPfQhyKdfIRtBJ08dvTpBbiQPT4MMtKKy7/Z1XPzUUfYwT8OSOKX8sK2ywXrscR/ITRIadO9wZaSQ4y0WXq6X1cxVIbzETi1ogaeX2VBCR5g6qAxIR6nzMgnfCRKxpdivYhQAR3ARkAZXoBdJjOc6zBP/CX0TeYWuq5RyABPjF25kcYrPmCgDf8y/rtu+sn9YI21W3kBow21al7YBswKBgQDnm8qpchDUSSshb6oq+ZUGztk5Kr8Fspa5gqEBqktWxpHSmm5wyzwr/zvYMtAEX0j707Ln9cGWNQ+elZlJV0t2mspMPhtR4VXyVaa5c9GW3iTH5rEG7WIxC9gav3utrU+6g6502yd3BkdFwdZfu+m7UMu5hXB7eS2iTBJFcjKkrwKBgQDHyIQAintOl2Oy9GgcJf6iiQVWYiSKZG83GKnBBK6xU2c29rEIEDsXbvG62lbRLQKwt1Nbtlo8/9DeN3TRw2ay52FR+djcGO5ZAHWhJVQv4P5xpporpicY3eAiOemXYjNehYHCP7lG+GYMda0nuXCFHvaVmY2+zlfKjo09c2gnqwKBgFU60nBahnDoYBPU2MUpxTqVIgDUhykcmDS6Km/HcCQFvKHIrL2bPJBgQ3CC+mOxgNUTCXIs0Mlqy02rdZY0ppOF0M4PyNPv3UXpWQpD4avoIZbigOCwuIKd/i+RqXy3G3Dihm+AOlylldLIyw+9wfxpdh7WSRdW94ETB2JA7PwHAoGBAL+d2M3UBNSqa1uXA8wLvSETnuTtmPKLxgfoRdj1rsAxqIuVLNL5DlQ5euymwiI6s5vfGbqbOg3Lpv+b3RXb/sKVHkjMBG2GFAWVZT08WnTZrfI/wxseb91v4auyNBOYgoCkOIKhMAmb8fT9YSj6uatUuVlfQA7ERnvnIhzQdhOlAoGAZDAJSSu4MrD4VslrXXxdKEl0nniq3B4U+lawdjhUxqKivmHRwFvbz0QZRI3VgaFfmjBD5CXz8s0MdgVcannrFadCNsIeogPLmPiNPo2WusKI5A+w4qAbStw31maz2ZYQAfi4YKJ63xba7jSzQq0jlljWuPs57VAluXVwpWKglVY="
-
-SAI_API_KEY_CANTABRICO = "aXZhbi5hcmFraXN0YWluQHRlY25hbGlhLmNvbTpVbmRmQlpob0pscTRZMUhEWkR1NQ=="
-
 CONFIGURACION_CUENCAS = {
     "urumea": {
         "nombre_legible": "Río Urumea (País Vasco)",
         "prefijo_archivos": "urumea",
         
         # 1. Parámetros Copernicus (ERA5-Land y GloFAS)
-        "coor_copernicus": [43.45, -2.15, 43.00, -1.65], 
+        "coor_copernicus": [43.10, -2.05, 43.35, -1.75], 
         "puntos_openmeteo": {
             "Cabecera": (43.15, -1.91),
             "Tramo_Medio": (43.26, -1.97),
