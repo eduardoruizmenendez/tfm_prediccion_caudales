@@ -81,9 +81,9 @@ historico_metricas = []
 # 4. BUCLE MAESTRO MULTI-HORIZONTE
 # =========================================================================
 for target_actual in horizontes_targets:
-    print(f"\n{"="*70}")
+    print("\n" + "="*70)
     print(f"🚀 INICIANDO ENTRENAMIENTO PARA EL OBJETIVO: {target_actual}")
-    print(f"{"="*70}\n")
+    print("="*70 + "\n")
     
     # Extraemos el vector target correspondiente a este horizonte
     y = df[target_actual].values
@@ -92,19 +92,30 @@ for target_actual in horizontes_targets:
     y_test = y[idx_test:]
     
     # -------------------------------------------------------------------------
-    # JUEZ 1: Entrenando XGBoost Regressor
+    # JUEZ 1: Entrenando XGBoost Regressor (CON EARLY STOPPING ACTIVADO 🛠️)
     # -------------------------------------------------------------------------
     print(f"🌲 [1/2] Entrenando XGBoost Regressor para {target_actual}...")
-    modelo_xgb = XGBRegressor(n_estimators=150, learning_rate=0.05, max_depth=6, random_state=42)
-    modelo_xgb.fit(X_train_scaled, y_train, eval_set=[(X_val_scaled, y_val)], verbose=False)
+    modelo_xgb = XGBRegressor(
+        n_estimators=150, 
+        learning_rate=0.05, 
+        max_depth=6, 
+        early_stopping_rounds=15,  # <-- 🛠️ ¡Aquí está la paciencia fijada!
+        random_state=42
+    )
+    # Le pasamos el conjunto de validación para monitorizar la parada anticipada
+    modelo_xgb.fit(
+        X_train_scaled, y_train, 
+        eval_set=[(X_val_scaled, y_val)], 
+        verbose=False
+    )
     
-    # Predicción de XGBoost en Test
+    # Predicción de XGBoost en Test (usa automáticamente el mejor árbol guardado)
     pred_xgb = modelo_xgb.predict(X_test_scaled)
     
     # Guardamos el archivo pkl de XGBoost
     ruta_save_xgb = os.path.join(carpeta_modelos, f"xgboost_{target_actual}.pkl")
     joblib.dump(modelo_xgb, ruta_save_xgb)
-    print(f"   -> ✅ Guardado: {ruta_save_xgb}")
+    print(f"   -> ✅ Guardado y optimizado con Early Stop: {ruta_save_xgb}")
     
     # -------------------------------------------------------------------------
     # JUEZ 2: Entrenando BiLSTM Sincronizada 2D
@@ -172,9 +183,9 @@ for target_actual in horizontes_targets:
         historico_metricas.append({
             "Horizonte": target_actual.replace("TARGET_", ""),
             "Modelo": nombre_mod,
+            "R2": r2,
             "RMSE": rmse,
-            "MAE": mae,
-            "R2": r2
+            "MAE": mae
         })
 
 # =========================================================================
@@ -186,12 +197,14 @@ print("="*70)
 
 df_global_metricas = pd.DataFrame(historico_metricas)
 
-# Pivotamos la tabla para que quede idéntica al formato exigido por las publicaciones científicas
-df_pivotada = df_global_metricas.pivot(index=["Horizonte", "Modelo"], columns=[], values=["R2", "RMSE", "MAE"])
-# Reordenamos las columnas de forma lógica para la lectura del tribunal de la UNIR
-df_pivotada = df_pivotada[["R2", "RMSE", "MAE"]]
+# Ordenamiento categórico estricto para evitar ordenación alfabética desordenada
+orden_cronologico = ['t+1', 't+4', 't+8', 't+12', 't+24']
+df_global_metricas['Horizonte'] = pd.Categorical(df_global_metricas['Horizonte'], categories=orden_cronologico, ordered=True)
+df_global_metricas = df_global_metricas.sort_values(by=['Horizonte', 'Modelo']).reset_index(drop=True)
 
-print(df_pivotada.to_string())
+# Visualización limpia indexada por horizonte para el documento Word
+df_print = df_global_metricas.set_index(['Horizonte', 'Modelo'])
+print(df_print.to_string())
 
 # Guardamos el reporte consolidado en el Data Lake
 ruta_reporte_final = os.path.join(carpeta_metricas, "reporte_consolidado_multihorizonte.csv")

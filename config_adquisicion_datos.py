@@ -7,7 +7,7 @@ CONFIGURACION_CUENCAS = {
         "nombre_legible": "Río Urumea (País Vasco)",
         "prefijo_archivos": "urumea",
         
-        # 1. Parámetros Copernicus (ERA5-Land y GloFAS)
+        # Parámetros Copernicus (ERA5-Land y GloFAS)
         "coor_copernicus": [43.10, -2.05, 43.35, -1.75], 
         "puntos_openmeteo": {
             "Cabecera": (43.15, -1.91),
@@ -20,12 +20,12 @@ CONFIGURACION_CUENCAS = {
         "carpeta_lluvia_h": "data/input/lluvia_h/pais_vasco/",
         "prefijo_fichero_lluvia_h": "lluvia_historica",
         
-        # 2. Parámetros AEMET (Estación de Referencia e Inferencia)
+        # Parámetros AEMET (Estación de Referencia e Inferencia)
         "aemet_estacion": "1024E",  # San Sebastián / Igueldo (o "1014A" para el Aeropuerto)
         "aemet_municipio": "20069", # San Sebastián
         "prefijo_archivos_aemet": "aemet_urumea",
         
-        # 3. Parámetros Hidrológicos (Confederaciones / SAIH)
+        # Parámetros Hidrológicos (Confederaciones / SAIH)
         "sai_estacion_id": "C0F0",  # Estación de Ereñozu (Euskalmet)
         "sai_api_tipo": "euskalmet",
         "archivo_salida_hidro": "urumea_hidro_actual.csv",
@@ -33,14 +33,21 @@ CONFIGURACION_CUENCAS = {
         "euskalmet_measure_type_id": "measuresForWater",
         "euskalmet_measure_id": "flow_1",
         "euskalmet_url_historico_base": "https://opendata.euskadi.eus/contenidos/ds_meteorologicos/met_stations_ds_{ano}/opendata/{ano}/{estacion}/{estacion}_{ano}_1.xml",
-        "carpeta_hidro_h": "data/input/hidro_h/pais_vasco/"
+        "carpeta_hidro_h": "data/input/hidro_h/pais_vasco/",
+        
+        # Pipeline de inferencia
+        "openmeteo_lat_lon": (43.15, -1.90), # Coordenada central para inferencia en tiempo real
+        "aemet_t2m_fallback": 14.5,           # Temperatura neutra de contingencia si cae la API
+        "ruta_scaler": "data/output/modelos/urumea/scaler_urumea.pkl",
+        "carpeta_modelos": "data/output/modelos/urumea",
+        "ruta_log_predicciones": "data/output/predicciones_produccion/urumea/historico_predicciones_log.csv"
     },
     
     "besaya": {
         "nombre_legible": "Río Besaya (Cantabria)",
         "prefijo_archivos": "besaya",
         
-        # 1. Parámetros Copernicus (ERA5-Land y GloFAS)
+        # Parámetros Copernicus (ERA5-Land y GloFAS)
         "coor_copernicus": [43.50, -4.80, 42.70, -3.10], 
         "puntos_openmeteo": {
             "Cabecera": (43.05, -4.08),
@@ -53,15 +60,22 @@ CONFIGURACION_CUENCAS = {
         "carpeta_lluvia_h": "data/input/lluvia_h/cantabria/",
         "prefijo_fichero_lluvia_h": "lluvia_historica",
         
-        # 2. Parámetros AEMET (Estación de Referencia e Inferencia)
+        # Parámetros AEMET (Estación de Referencia e Inferencia)
         "aemet_estacion": "1109X",  # Santander Aeropuerto
         "aemet_municipio": "39087", # Torrelavega
         "prefijo_archivos_aemet": "aemet_besaya",
         
-        # 3. Parámetros Hidrológicos (Confederaciones / SAIH)
+        # Parámetros Hidrológicos (Confederaciones / SAIH)
         "sai_estacion_id": "A085",  # Estación de aforo del Besaya (SAIH Cantábrico)
         "sai_api_tipo": "cantabrico",
         "archivo_salida_hidro": "besaya_hidro_actual.csv",
-        "carpeta_hidro_h": "data/input/hidro_h/cantabria/"
+        "carpeta_hidro_h": "data/input/hidro_h/cantabria/",
+        
+        # Pipeline de inferencia
+        "openmeteo_lat_lon": (43.10, -4.00), # Coordenada central para inferencia en tiempo real
+        "aemet_t2m_fallback": 14.5,           # Temperatura neutra de contingencia si cae la API
+        "ruta_scaler": "data/output/modelos/besaya/scaler_besaya.pkl",
+        "carpeta_modelos": "data/output/modelos/besaya",
+        "ruta_log_predicciones": "data/output/predicciones_produccion/besaya/historico_predicciones_log.csv"
     }
 }

@@ -7,7 +7,7 @@ import jwt
 import os
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
-from config_adquisicion_datos import CONFIGURACION_CUENCAS, AEMET_API_KEY, EUSKALMET_API_KEY, SAI_API_KEY_CANTABRICO
+from config_adquisicion_datos import CONFIGURACION_CUENCAS
 
 # =====================================================================
 # UTILIDAD 1: GESTIÓN DE PETICIONES HTTP ROBUSTAS
@@ -154,3 +154,48 @@ def generar_jwt_euskalmet(private_key_str, email_usuario):
     except Exception as e:
         print(f"❌ Error crítico en el motor criptográfico RS256: {e}")
         return None
+    
+    
+# =====================================================================
+# UTILIDAD 5: PARSEADOR CLI QUE ACEPTA CUENCA Y NIVEL
+# =====================================================================    
+def obtener_argumentos_cuenca_y_nivel():
+    """
+    Extensión del parseador CLI oficial para el entorno de producción/inferencia.
+    Permite capturar dinámicamente tanto la cuenca como el nivel en tiempo real
+    sin romper la lógica del diccionario centralizado ni del archivo .env.
+    """
+    parser = argparse.ArgumentParser(
+        description="Core Orquestador - Entorno de Inferencia y Explotación en Tiempo Real."
+    )
+    
+    opciones_validas = list(CONFIGURACION_CUENCAS.keys())
+    
+    parser.add_argument(
+        "--cuenca",
+        type=str,
+        required=True,
+        choices=opciones_validas,
+        help="Clave identificadora de la cuenca hidrográfica a procesar."
+    )
+    
+    # Registramos oficialmente el nuevo parámetro requerido para producción
+    parser.add_argument(
+        "--nivel",
+        type=float,
+        required=True,
+        help="Lectura instantánea de nivel reportada por el sensor Edge (m)."
+    )
+    
+    args = parser.parse_args()
+    
+    load_dotenv()
+    
+    credenciales = {
+        "AEMET": os.getenv("AEMET_API_KEY"),
+        "EUSKALMET": os.getenv("EUSKALMET_API_KEY"),
+        "SAI_API_KEY": os.getenv("SAI_API_KEY_CANTABRICO")
+    }
+    
+    # Retorna el string identificador, los parámetros de la cuenca, las credenciales Y el nivel
+    return args.cuenca, CONFIGURACION_CUENCAS[args.cuenca], credenciales, args.nivel
