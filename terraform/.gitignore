@@ -1,0 +1,48 @@
+# Cachés y plugins descargados por terraform init
+.terraform/
+.terraform.tfstate.lock.info
+
+# State files: NUNCA al repo (contienen valores sensibles como las
+# access keys de Studio Lab generadas por TF)
+*.tfstate
+*.tfstate.*
+
+# Plan binarios (regenerables con terraform plan)
+tfplan
+*.tfplan
+
+crash.log
+crash.*.log
+
+# Variables locales con valores reales
+*.tfvars
+*.tfvars.json
+
+# Sobreescrituras locales de .tf
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Configuración local de CLI
+.terraformrc
+terraform.rc
+
+# =====================================================================
+# Artefactos de build (zips de Lambdas y wheels de Python)
+# Se regeneran con ./build.sh
+# =====================================================================
+
+# Zips compilados por archive_file
+.build/
+
+# Wheels pip-instalados dentro de cada src/<lambda>/
+# Pattern: ignorar TODO en src/<lambda>/ excepto los ficheros fuente
+src/*/*
+!src/*/handler.py
+!src/*/requirements.txt
+!src/*/Dockerfile
+
+# Por si algún src/ tiene __pycache__ tras pruebas locales
+**/__pycache__/
+*.pyc
