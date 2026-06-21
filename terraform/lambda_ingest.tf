@@ -65,7 +65,7 @@ resource "aws_s3_object" "aemet_actual_code" {
 
 resource "aws_lambda_function" "aemet_actual" {
   function_name    = "${local.project}-aemet-actual"
-  description      = "Ingesta horaria de observaciones AEMET (estación 1024E, San Sebastián)"
+  description      = "Ingesta horaria AEMET (estación 1024E Igueldo, cuenca Urumea — tal cual config_adquisicion_datos)"
   role             = aws_iam_role.lambda_exec.arn
   s3_bucket        = aws_s3_object.aemet_actual_code.bucket
   s3_key           = aws_s3_object.aemet_actual_code.key
@@ -79,14 +79,18 @@ resource "aws_lambda_function" "aemet_actual" {
     variables = {
       BUCKET_NAME     = aws_s3_bucket.data_lake.id
       CUENCA          = "urumea"
-      AEMET_ESTACION  = "1014A" # Hondarribia/Aeropuerto Donostia (más fiable que 1024E Igueldo)
+      AEMET_ESTACION  = "1024E" # Igueldo (literal de config_adquisicion_datos.py)
       AEMET_SSM_PARAM = aws_ssm_parameter.aemet_api_key.name
     }
   }
 }
 
 # ---------------------------------------------------------------------
-# HIDRO ACTUAL (Euskalmet, Urumea) — incluye pyjwt + cryptography
+# HIDRO ACTUAL (Euskalmet — Urumea, estación C0F0 Ereñozu)
+#
+# Adaptación literal de hidro_actual.py::descargar_telemetria_rio (rama
+# api_tipo == "euskalmet") + generar_jwt_euskalmet de utils_adquisicion_datos.
+# Incluye pyjwt + cryptography para firmar el JWT RS256.
 # ---------------------------------------------------------------------
 data "archive_file" "hidro_actual" {
   type        = "zip"
@@ -103,7 +107,7 @@ resource "aws_s3_object" "hidro_actual_code" {
 
 resource "aws_lambda_function" "hidro_actual" {
   function_name    = "${local.project}-hidro-actual"
-  description      = "Ingesta horaria de telemetría Euskalmet (Ereñozu C0F0, cuenca Urumea)"
+  description      = "Ingesta horaria Euskalmet (Ereñozu C0F0, cuenca Urumea — caudal flow_1)"
   role             = aws_iam_role.lambda_exec.arn
   s3_bucket        = aws_s3_object.hidro_actual_code.bucket
   s3_key           = aws_s3_object.hidro_actual_code.key
@@ -119,8 +123,8 @@ resource "aws_lambda_function" "hidro_actual" {
       CUENCA                  = "urumea"
       EUSKALMET_ESTACION      = "C0F0"
       EUSKALMET_SENSOR_ID     = "CAF0"
-      EUSKALMET_MEASURE_TYPE  = "CDF" # placeholder — ajustar con valor real de Daniel
-      EUSKALMET_MEASURE_ID    = "F01" # placeholder — ajustar con valor real de Daniel
+      EUSKALMET_MEASURE_TYPE  = "measuresForWater"
+      EUSKALMET_MEASURE_ID    = "flow_1"
       EUSKALMET_PRIVKEY_PARAM = aws_ssm_parameter.euskalmet_private_key.name
       EUSKALMET_EMAIL_PARAM   = aws_ssm_parameter.euskalmet_email.name
     }

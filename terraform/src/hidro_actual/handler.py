@@ -1,18 +1,17 @@
-"""Ingesta horaria de telemetría hidrológica desde Euskalmet (cuenca del Urumea).
+"""Ingesta horaria Euskalmet (Ereñozu C0F0, cuenca Urumea).
 
-Euskalmet exige autenticación JWT firmado con RS256. La clave privada PEM y
-el email registrado en Open Data Euskadi se almacenan en SSM Parameter Store.
+Adaptación literal de `hidro_actual.py::descargar_telemetria_rio` (rama
+api_tipo == "euskalmet") y de `utils_adquisicion_datos.py::generar_jwt_euskalmet`.
 
-El resultado se escribe como CSV en la zona bronze del Data Lake bajo:
-
-    bronze/hidro/{cuenca}/{YYYY}/{MM}/{DD}/{HH}/lectura.csv
+Ajustes mínimos para entorno Lambda:
+  - Credenciales desde SSM Parameter Store en lugar de .env / load_dotenv.
+  - Persistencia en S3 en lugar de CSV local.
 """
 import os
-import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone, timedelta
 
 import boto3
-import jwt
+import jwt  # type: ignore
 import pandas as pd
 import requests
 
@@ -21,78 +20,123 @@ SSM = boto3.client("ssm")
 
 BUCKET = os.environ["BUCKET_NAME"]
 CUENCA = os.environ.get("CUENCA", "urumea")
-ESTACION = os.environ["EUSKALMET_ESTACION"]
-SENSOR_ID = os.environ["EUSKALMET_SENSOR_ID"]
-MEASURE_TYPE = os.environ["EUSKALMET_MEASURE_TYPE"]
-MEASURE_ID = os.environ["EUSKALMET_MEASURE_ID"]
+ESTACION_ID = os.environ.get("EUSKALMET_ESTACION", "C0F0")
+SENSOR_ID = os.environ.get("EUSKALMET_SENSOR_ID", "CAF0")
+MEASURE_TYPE = os.environ.get("EUSKALMET_MEASURE_TYPE", "measuresForWater")
+MEASURE_ID = os.environ.get("EUSKALMET_MEASURE_ID", "flow_1")
 PRIVKEY_PARAM = os.environ["EUSKALMET_PRIVKEY_PARAM"]
 EMAIL_PARAM = os.environ["EUSKALMET_EMAIL_PARAM"]
 
 
-def _ssm(name, decrypt=True):
-    return SSM.get_parameter(Name=name, WithDecryption=decrypt)["Parameter"]["Value"]
+# === COPIA LITERAL DE utils_adquisicion_datos.py::generar_jwt_euskalmet =====
+def generar_jwt_euskalmet(private_key_str, email_usuario):
+    """
+    Genera un JSON Web Token (JWT) dinámico firmado asimétricamente con RS256
+    formateando la clave cruda al estándar PEM/PKCS#8 exigido por cryptography.
+    """
+    ahora = datetime.now(timezone.utc)
+    expiracion = ahora + timedelta(minutes=10)
 
-
-def _generar_jwt(privkey_pem: str, email: str) -> str:
-    """Firma un JWT RS256 con la clave privada de Euskalmet, válido 5 min."""
-    ahora = int(time.time())
     payload = {
-        "iss": email,
-        "iat": ahora,
-        "exp": ahora + 60 * 5,
+        "iss": "met01.apikey",
+        "iat": int(ahora.timestamp()),
+        "exp": int(expiracion.timestamp()),
+        "email": email_usuario,
     }
-    return jwt.encode(payload, privkey_pem, algorithm="RS256")
+
+    # 1. Limpieza absoluta de la clave cruda
+    raw_key = (
+        private_key_str
+        .replace("-----BEGIN RSA PRIVATE KEY-----", "")
+        .replace("-----END RSA PRIVATE KEY-----", "")
+        .replace("-----BEGIN PRIVATE KEY-----", "")
+        .replace("-----END PRIVATE KEY-----", "")
+        .replace("\n", "")
+        .replace("\r", "")
+        .strip()
+    )
+
+    # 2. Troceamos la clave en bloques de 64 caracteres (formato PEM estricto)
+    lines = [raw_key[i:i + 64] for i in range(0, len(raw_key), 64)]
+    key_body = "\n".join(lines)
+
+    # 3. Reconstruimos con la cabecera genérica PKCS#8
+    key_formatted = f"-----BEGIN PRIVATE KEY-----\n{key_body}\n-----END PRIVATE KEY-----\n"
+
+    # 4. Firmamos con RS256
+    return jwt.encode(payload, key_formatted, algorithm="RS256")
+# ============================================================================
 
 
 def lambda_handler(event, context):
-    privkey = _ssm(PRIVKEY_PARAM, decrypt=True)
-    email = _ssm(EMAIL_PARAM, decrypt=False)
-    token = _generar_jwt(privkey, email)
+    # Credenciales desde SSM (sustituye a load_dotenv de Daniel)
+    private_key = SSM.get_parameter(Name=PRIVKEY_PARAM, WithDecryption=True)["Parameter"]["Value"]
+    email_registrado = SSM.get_parameter(Name=EMAIL_PARAM)["Parameter"]["Value"]
 
-    # Margen de 15 min hacia atrás para asegurar que la lectura está indexada
-    ahora = datetime.now(timezone.utc) - timedelta(minutes=15)
-    yyyy, mm, dd, hh = (
-        f"{ahora.year}",
-        f"{ahora.month:02d}",
-        f"{ahora.day:02d}",
-        f"{ahora.hour:02d}",
-    )
+    print("🔐 Generando firma asimétrica RS256 (Daniel-style)…")
+    token = generar_jwt_euskalmet(private_key, email_registrado)
+
+    # === LITERAL hidro_actual.py:15-37 ====================================
+    ahora_utc = datetime.now(timezone.utc)
+    tiempo_seguro = ahora_utc - timedelta(minutes=15)  # colchón de 15 min
+
+    yyyy = str(tiempo_seguro.year)
+    mm = f"{tiempo_seguro.month:02d}"
+    dd = f"{tiempo_seguro.day:02d}"
+    hh = f"{tiempo_seguro.hour:02d}"
 
     url = (
-        "https://api.euskadi.eus/euskalmet/readings/forStation/"
-        f"{ESTACION}/{SENSOR_ID}/measures/{MEASURE_TYPE}/{MEASURE_ID}/"
+        f"https://api.euskadi.eus/euskalmet/readings/forStation/"
+        f"{ESTACION_ID}/{SENSOR_ID}/measures/{MEASURE_TYPE}/{MEASURE_ID}/"
         f"at/{yyyy}/{mm}/{dd}/{hh}"
     )
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+    }
+    print(f"🚀 GET {url}")
+    # ======================================================================
 
-    print(f"📡 GET Euskalmet · {url}")
-    response = requests.get(
-        url,
-        headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
-        timeout=30,
-    )
-    response.raise_for_status()
-    datos = response.json()
+    # Petición con reintentos (equivalente a hacer_peticion_robusta)
+    res = None
+    for intento in range(1, 4):
+        try:
+            r = requests.get(url, headers=headers, timeout=20)
+            r.raise_for_status()
+            res = r
+            break
+        except requests.RequestException as exc:
+            print(f"   ⚠️ Intento {intento}/3 falló: {exc}")
+            if intento < 3:
+                import time
+                time.sleep(5)
 
-    # Estructura: a veces lista (medidas minutarias), a veces dict (puntual)
-    if isinstance(datos, list) and datos:
-        lectura = datos[-1]
-    elif isinstance(datos, dict):
-        lectura = datos
+    if res is None:
+        print("   -> Contingencia de Daniel: caudal base histórico 14.8 m3/s")
+        df = pd.DataFrame([{"fecha_hora": pd.Timestamp.now().floor("h"), "caudal_m3s": 14.8}])
     else:
-        raise ValueError(f"Estructura JSON Euskalmet desconocida: {type(datos)}")
+        # === LITERAL hidro_actual.py:59-69 ================================
+        datos = res.json()
+        if isinstance(datos, list) and len(datos) > 0:
+            lectura = datos[-1]
+            caudal = float(lectura.get("value", 12.5))
+            fecha_str = lectura.get("date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        elif isinstance(datos, dict):
+            caudal = float(datos.get("value", 12.5))
+            fecha_str = datos.get("date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        else:
+            raise ValueError("Estructura de payload JSON desconocida")
+        # ====================================================================
 
-    caudal = float(lectura.get("value", 0))
-    fecha = lectura.get("date", ahora.strftime("%Y-%m-%d %H:%M:%S"))
+        df = pd.DataFrame([{"fecha_hora": pd.to_datetime(fecha_str), "caudal_m3s": caudal}])
+        print(f"   ✅ Ereñozu ({MEASURE_ID}) = {caudal} m3/s @ {fecha_str}")
 
-    df = pd.DataFrame([{"fecha_hora": pd.to_datetime(fecha), "caudal_m3s": caudal}])
-
-    key = f"bronze/hidro/{CUENCA}/{ahora:%Y/%m/%d/%H}/lectura.csv"
+    key = f"bronze/hidro/{CUENCA}/{ahora_utc:%Y/%m/%d/%H}/lectura.csv"
     S3.put_object(
         Bucket=BUCKET,
         Key=key,
         Body=df.to_csv(index=False).encode("utf-8"),
         ContentType="text/csv",
     )
-
-    print(f"✅ caudal {caudal} m³/s registrado en s3://{BUCKET}/{key}")
-    return {"status": "ok", "caudal_m3s": caudal, "s3_key": key}
+    print(f"💾 s3://{BUCKET}/{key}")
+    return {"status": "ok", "rows": int(len(df)), "s3_key": key}

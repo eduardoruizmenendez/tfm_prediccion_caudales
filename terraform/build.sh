@@ -16,7 +16,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="$SCRIPT_DIR/src"
 
-LAMBDAS=( "openmeteo" "aemet_actual" "hidro_actual" "dataset" )
+LAMBDAS=( "openmeteo" "aemet_actual" "hidro_actual" "dataset" "hidro_historico" )
 
 if [ $# -gt 0 ]; then
     LAMBDAS=( "$@" )

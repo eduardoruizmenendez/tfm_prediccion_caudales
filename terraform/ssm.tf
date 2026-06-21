@@ -37,6 +37,18 @@ resource "aws_ssm_parameter" "euskalmet_private_key" {
   }
 }
 
+resource "aws_ssm_parameter" "cds_api_key" {
+  name        = "/tfm/copernicus/cds-api-key"
+  description = "API key del CDS de Copernicus para descargar ERA5-Land"
+  type        = "SecureString"
+  value       = "REPLACE_ME"
+
+  lifecycle {
+    ignore_changes  = [value]
+    prevent_destroy = true
+  }
+}
+
 resource "aws_ssm_parameter" "euskalmet_email" {
   name        = "/tfm/euskalmet/email"
   description = "Email registrado en Open Data Euskadi (subject del JWT)"

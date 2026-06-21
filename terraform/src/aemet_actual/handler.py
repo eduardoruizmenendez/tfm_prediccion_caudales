@@ -1,16 +1,11 @@
-"""Ingesta horaria de observaciones convencionales AEMET (estación 1024E).
+"""Ingesta horaria AEMET (observación convencional, cuenca Urumea).
 
-La API de AEMET sigue un patrón de doble paso:
-  1. Petición autenticada que devuelve una URL temporal.
-  2. Descarga de los datos JSON desde esa URL temporal.
+Adaptación literal de `aemet_actual.py::descargar_aemet_horario`
++ `utils_adquisicion_datos.py::hacer_peticion_robusta`.
 
-Decisiones de seguridad:
-  - La api_key se envía en CABECERA HTTP, no en query string, para que
-    los mensajes de error de `requests` no la incluyan en los logs.
-  - Si ocurre cualquier excepción HTTP, se sanea el mensaje antes de
-    re-lanzar la excepción.
-
-Resultado: bronze/aemet_actual/{cuenca}/{YYYY}/{MM}/{DD}/{HH}/observaciones.csv
+Ajustes mínimos para entorno Lambda:
+  - api_key desde SSM Parameter Store en lugar de .env / load_dotenv.
+  - Persistencia en S3 en lugar de CSV local.
 """
 import os
 import time
@@ -25,67 +20,92 @@ SSM = boto3.client("ssm")
 
 BUCKET = os.environ["BUCKET_NAME"]
 CUENCA = os.environ.get("CUENCA", "urumea")
-ESTACION = os.environ.get("AEMET_ESTACION", "1024E")
+ESTACION = os.environ.get("AEMET_ESTACION", "1024E")  # Igueldo (Urumea), tal cual Daniel
 SSM_PARAM = os.environ["AEMET_SSM_PARAM"]
 
-MAX_REINTENTOS = 3
-ESPERA_429 = 15  # segundos a esperar tras un 429 antes de reintentar
 
-
-def _api_key() -> str:
-    response = SSM.get_parameter(Name=SSM_PARAM, WithDecryption=True)
-    return response["Parameter"]["Value"]
-
-
-def _peticion_aemet(url: str, api_key: str, etapa: str) -> dict:
-    """Petición robusta con reintentos exponenciales y mensajes de error sin secretos."""
-    headers = {
-        "cache-control": "no-cache",
-        "api_key": api_key,  # AEMET admite api_key en cabecera, no expuesto en URLs
-    }
-    last_status = None
-
-    for intento in range(1, MAX_REINTENTOS + 1):
+# === COPIA LITERAL de utils_adquisicion_datos.py::hacer_peticion_robusta ===
+def hacer_peticion_robusta(url, headers=None, params=None, max_reintentos=3, timeout=15):
+    """Ejecuta una petición HTTP con reintentos automáticos ante micro-cortes."""
+    for intento in range(1, max_reintentos + 1):
         try:
-            r = requests.get(url, headers=headers, timeout=30)
-            if r.status_code == 200:
-                return r.json()
-            last_status = r.status_code
-            if r.status_code == 429:
-                # AEMET rate-limit: esperar y reintentar
-                print(f"   ⚠️ [{etapa}] 429 Too Many Requests — esperando {ESPERA_429}s antes de reintentar")
-                time.sleep(ESPERA_429 * intento)  # backoff lineal
-                continue
-            # Otros códigos de error: log sin url y re-lanzar limpio
-            raise RuntimeError(f"AEMET {etapa} devolvió status {r.status_code}")
-        except requests.RequestException as exc:
-            print(f"   ⚠️ [{etapa}] error de red (intento {intento}/{MAX_REINTENTOS}): {type(exc).__name__}")
-            time.sleep(5 * intento)
+            respuesta = requests.get(url, headers=headers, params=params, timeout=timeout)
+            respuesta.raise_for_status()
+            return respuesta
+        except requests.exceptions.RequestException as e:
+            print(f"   ⚠️ [Intento {intento}/{max_reintentos}] Incidencia en la red externa: {e}")
+            if intento < max_reintentos:
+                print("   ⏳ Esperando 5 segundos para el próximo reintento...")
+                time.sleep(5)
+            else:
+                print("   ❌ Se agotaron los reintentos permitidos. Servidor inaccesible.")
+                return None
+# ===========================================================================
 
-    raise RuntimeError(f"AEMET {etapa} agotó {MAX_REINTENTOS} reintentos (último status: {last_status})")
+
+def descargar_aemet_horario(api_key, id_estacion):
+    """Adaptado de aemet_actual.py:9-83 — escribe a S3 en vez de CSV local."""
+    print(f"📡 Conectando con AEMET (Tiempo Real) para la estación {id_estacion}...")
+
+    url_peticion = f"https://opendata.aemet.es/opendata/api/observacion/convencional/datos/estacion/{id_estacion}"
+    querystring = {"api_key": api_key}
+    headers = {"cache-control": "no-cache"}
+
+    # PASO 1
+    res_1 = hacer_peticion_robusta(url_peticion, headers=headers, params=querystring)
+    if res_1 is None:
+        return None
+
+    datos_res_1 = res_1.json()
+
+    if datos_res_1.get("estado") == 200:
+        url_datos = datos_res_1.get("datos")
+        print("✅ Permiso concedido. Descargando datos horarios consolidados...")
+
+        # PASO 2
+        res_2 = hacer_peticion_robusta(url_datos)
+        if res_2 is None:
+            return None
+
+        datos_reales = res_2.json()
+        df = pd.DataFrame(datos_reales)
+
+        if "fint" in df.columns:
+            df["fecha_hora"] = pd.to_datetime(df["fint"])
+
+            columnas_deseadas = ["fecha_hora"]
+            if "prec" in df.columns:
+                columnas_deseadas.append("prec")
+            if "ta" in df.columns:
+                columnas_deseadas.append("ta")
+
+            df_limpio = df[columnas_deseadas].copy()
+            df_limpio = df_limpio.sort_values("fecha_hora").reset_index(drop=True)
+
+            if "prec" in df_limpio.columns:
+                df_limpio["prec"] = df_limpio["prec"].fillna(0.0)
+
+            return df_limpio
+        else:
+            print("⚠️ No se encontró la columna 'fint' en la respuesta de AEMET.")
+            return df
+
+    elif datos_res_1.get("estado") == 404 or "No hay datos" in datos_res_1.get("descripcion", ""):
+        print("   ⚠️ Estación temporalmente desconectada. Insertando dummy row.")
+        hora_actual = pd.Timestamp.now().floor("h")
+        return pd.DataFrame([{"fecha_hora": hora_actual, "prec": 0.0, "ta": None}])
+
+    else:
+        print(f"❌ Error AEMET: {datos_res_1.get('descripcion')}")
+        return None
 
 
 def lambda_handler(event, context):
-    api_key = _api_key()
+    api_key = SSM.get_parameter(Name=SSM_PARAM, WithDecryption=True)["Parameter"]["Value"]
 
-    # Paso 1 — petición indirecta
-    url_indice = f"https://opendata.aemet.es/opendata/api/observacion/convencional/datos/estacion/{ESTACION}"
-    print(f"📡 AEMET paso 1: {url_indice}")
-    indice = _peticion_aemet(url_indice, api_key, etapa="paso1")
-
-    if indice.get("estado") != 200:
-        raise RuntimeError(f"AEMET respondió estado {indice.get('estado')}: {indice.get('descripcion')}")
-
-    # Paso 2 — descarga real desde la URL temporal (sin la api_key, esa URL es ya autenticada)
-    url_datos = indice["datos"]
-    print(f"📡 AEMET paso 2: descargando JSON de datos…")
-    r2 = requests.get(url_datos, timeout=30)
-    if r2.status_code != 200:
-        raise RuntimeError(f"AEMET paso2 devolvió status {r2.status_code}")
-
-    df = pd.DataFrame(r2.json())
-    if "fint" in df.columns:
-        df["fecha_hora"] = pd.to_datetime(df["fint"])
+    df = descargar_aemet_horario(api_key, ESTACION)
+    if df is None:
+        raise RuntimeError("AEMET no devolvió datos ni dummy row tras reintentos")
 
     ahora = datetime.now(timezone.utc)
     key = f"bronze/aemet_actual/{CUENCA}/{ahora:%Y/%m/%d/%H}/observaciones.csv"
@@ -95,6 +115,5 @@ def lambda_handler(event, context):
         Body=df.to_csv(index=False).encode("utf-8"),
         ContentType="text/csv",
     )
-
-    print(f"✅ {len(df)} filas escritas en s3://{BUCKET}/{key}")
+    print(f"💾 s3://{BUCKET}/{key} ({len(df)} filas)")
     return {"status": "ok", "rows": int(len(df)), "s3_key": key}
