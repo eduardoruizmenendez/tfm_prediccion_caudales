@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8"><title>Auditoría de Eventos Reales - FluvialAI</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>.navbar-custom { background-color: #1e293b !important; } .nav-link i { margin-right: 6px; }</style>
+</head>
+<body style="background-color: #f4f6f9;">
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm mb-4">
+        <div class="container">
+            <a class="navbar-brand font-weight-bold" href="/dashboard"><i class="fas fa-chart-area"></i> FluvialAI Edge</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item"><a class="nav-link font-weight-bold" href="/dashboard"><i class="fas fa-chart-bar"></i> Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link font-weight-bold" href="/audit"><i class="fas fa-history"></i> Auditoría de Campo</a></li>
+                    <li class="nav-item"><a class="nav-link font-weight-bold" href="/settings"><i class="fas fa-cog"></i> Configuración</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow rounded mb-4">
+                    <div class="card-header bg-dark text-white font-weight-bold"><i class="fas fa-edit"></i> Reportar Verdad de Campo</div>
+                    <div class="card-body">
+                        <p class="text-muted small">Selecciona el rango de tiempo exacto en el que ocurrió un desbordamiento o inundación en el mundo real.</p>
+                        <div id="alert-box"></div>
+                        <form id="audit-form">
+                            <div class="form-group">
+                                <label class="font-weight-bold">Fecha y Hora de Inicio:</label>
+                                <input type="datetime-local" class="form-control" id="timestamp_inicio" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="font-weight-bold">Fecha y Hora de Fin:</label>
+                                <input type="datetime-local" class="form-control" id="timestamp_fin" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="font-weight-bold">Estado del Evento:</label>
+                                <select class="form-control" id="hubo_inundacion">
+                                    <option value="1">⚠️ Inundación / Desbordamiento Real</option>
+                                    <option value="0">✅ Río Estable / Falsa Alarma</option>
+                                </select>
+                            </div>
+                            <hr>
+                            <button type="button" class="btn btn-warning btn-block font-weight-bold text-dark" onclick="markFloodEvent()"><i class="fas fa-tag"></i> Etiquetar Histórico en SQLite</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function formatearFecha(inputDateTime) {
+            if(!inputDateTime) return "";
+            const d = new Date(inputDateTime);
+            const pad = (n) => n.toString().padStart(2, '0');
+            return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':00';
+        }
+        async function markFloodEvent() {
+            const payload = {
+                timestamp_inicio: formatearFecha(document.getElementById('timestamp_inicio').value),
+                timestamp_fin: formatearFecha(document.getElementById('timestamp_fin').value),
+                hubo_inundacion: parseInt(document.getElementById('hubo_inundacion').value)
+            };
+            const alertBox = document.getElementById('alert-box');
+            try {
+                const response = await fetch('/mark-flood', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const data = await response.json();
+                if (response.ok) { alertBox.innerHTML = '<div class="alert alert-success font-weight-bold">' + data.message + '</div>'; }
+                else { alertBox.innerHTML = '<div class="alert alert-danger font-weight-bold">Error: ' + data.message + '</div>'; }
+            } catch (e) { alertBox.innerHTML = '<div class="alert alert-danger font-weight-bold">Fallo en la comunicación con el nodo Edge.</div>'; }
+        }
+    </script>
+</body>
+</html>

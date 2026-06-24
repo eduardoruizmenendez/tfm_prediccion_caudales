@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<config><settings><polling_interval_seconds>1</polling_interval_seconds><test_mode>false</test_mode><max_caudal_calibracion>10.0</max_caudal_calibracion><altura_sensor_instalado_metros>3.81</altura_sensor_instalado_metros><pin_pwm_gpio>23</pin_pwm_gpio><aws_fetch_url>TBD</aws_fetch_url><aws_push_url>TBD</aws_push_url></settings></config>

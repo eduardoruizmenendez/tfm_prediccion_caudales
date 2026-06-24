@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8"><title>Raspberry Pi 5 - Edge AI Realtime</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        .card-dinamica { transition: all 0.3s ease; }
+        .navbar-custom { background-color: #1e293b !important; }
+        .nav-link i, .dropdown-item i { margin-right: 6px; width: 20px; text-align: center; }
+        .toast-fixed { position: fixed; top: 75px; right: 20px; z-index: 1050; min-width: 250px; display: none; }
+        .meta-ia-box { font-size: 0.8rem; background-color: rgba(0,0,0,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block; margin: 2px; }
+        .contenedor-diagrama { background: #fff; border-radius: 8px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); height: 100%; min-height: 430px; display: block; }
+        .diagrama-titulo { font-size: 0.85rem; font-weight: bold; color: #1e293b; text-align: center; margin-bottom: 15px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+        .espacio-grafico { position: relative; width: 100%; height: 340px; }
+        .viga-puente { height: 16px; background: #64748b; border-radius: 4px; position: absolute; top: 0px; left: 0px; right: 0px; z-index: 10; }
+        .caja-sensor { width: 56px; height: 30px; background: #0f172a; border-radius: 0 0 4px 4px; position: absolute; top: 13px; left: 50%; transform: translateX(-50%); color: #38bdf8; text-align: center; font-size: 0.65rem; line-height: 30px; font-weight: bold; border: 2px solid #38bdf8; z-index: 12; }
+        .ondas-ultrasonido { position: absolute; top: 43px; left: 50%; transform: translateX(-50%); width: 40px; display: flex; flex-direction: column; align-items: center; z-index: 9; }
+        .onda { width: 16px; height: 3px; border-radius: 50%; border-top: 2px solid #06b6d4; margin-bottom: 7px; opacity: 0; animation: emitirOnda 1.5s infinite linear; }
+        .onda:nth-child(2) { animation-delay: 0.5s; width: 26px; }
+        .onda:nth-child(3) { animation-delay: 1s; width: 36px; }
+        @keyframes emitirOnda { 0% { opacity: 0; transform: translateY(0); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(140px); } }
+        .rio-agua { position: absolute; bottom: 0; left: 0; width: 100%; background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%); border-radius: 0 0 8px 8px; transition: height 0.5s ease-out; display: flex; align-items: center; justify-content: center; overflow: hidden; z-index: 5; }
+        .rio-agua::before { content: ""; position: absolute; top: 0; left: 0; width: 200%; height: 6px; background: rgba(255,255,255,0.3); border-radius: 50%; animation: oleaje 3s infinite linear; }
+        @keyframes oleaje { 0% { transform: translateX(0) scaleY(1); } 50% { transform: translateX(-25%) scaleY(1.3); } 100% { transform: translateX(-50%) scaleY(1); } }
+        .cota-linea { position: absolute; border-left: 2px dashed #ef4444; width: 2px; z-index: 8; }
+        .cota-txt { position: absolute; font-size: 0.7rem; font-weight: bold; background: #fff; padding: 2px 5px; border-radius: 4px; border: 1px solid #cbd5e1; white-space: nowrap; z-index: 11; }
+    </style>
+</head>
+<body style="background-color: #f4f6f9;">
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm mb-4">
+        <div class="container">
+            <a class="navbar-brand font-weight-bold" href="/dashboard"><i class="fas fa-chart-area"></i> FluvialAI Edge</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item active"><a class="nav-link font-weight-bold" href="/dashboard"><i class="fas fa-chart-bar"></i> Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link font-weight-bold" href="/audit"><i class="fas fa-history"></i> Auditoría</a></li>
+                    <li class="nav-item"><a class="nav-link font-weight-bold" href="/settings"><i class="fas fa-cog"></i> Configuración</a></li>
+                    <li class="nav-item dropdown ml-2">
+                        <a class="nav-link dropdown-toggle text-light font-weight-bold bg-dark px-3 rounded border border-secondary" style="cursor: pointer; line-height: 38px; display: inline-block; text-decoration: none;" id="apiDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <i class="fas fa-terminal"></i> Operaciones API
+                        </a>
+                        <div class="dropdown-menu shadow-lg" aria-labelledby="apiDropdown">
+                            <a class="dropdown-item font-weight-bold text-primary" href="/docs" target="_blank"><i class="fas fa-file-alt"></i> OpenAPI UI (/docs)</a>
+                            <a class="dropdown-item font-weight-bold text-info" href="/predict" target="_blank"><i class="fas fa-brain"></i> Predicciones (/predict)</a>
+                            <a class="dropdown-item font-weight-bold text-success" href="/debug-sensor" target="_blank"><i class="fas fa-database"></i> Datos Crudos (/debug-sensor)</a>
+                            <button onclick="reentrenarModeloIA()" class="dropdown-item font-weight-bold text-warning"><i class="fas fa-sync-alt"></i> Reentrenar Random Forest</button>
+                            <div class="dropdown-divider"></div>
+                            <button onclick="reiniciarServidorBackend()" class="dropdown-item font-weight-bold text-danger bg-light"><i class="fas fa-power-off"></i> Reiniciar Servidor Edge</button>
+                        </div>
+                    </li>
+                </ul>
+                <form class="form-inline my-2 my-lg-0 bg-dark p-1 rounded border border-secondary shadow-sm">
+                    <label class="text-white small font-weight-bold mr-2 ml-1"><i class="fas fa-history"></i> Ventana:</label>
+                    <select class="form-control form-control-sm bg-white text-dark font-weight-bold" id="selector-tiempo" onchange="procesarYFiltrarGraficas()">
+                        <option value="24">Últimas 24 Horas</option>
+                        <option value="12">Últimas 12 Horas</option>
+                        <option value="6">Últimas 6 Horas</option>
+                        <option value="3">Últimas 3 Horas</option>
+                        <option value="1">Última 1 Hora</option>
+                        <option value="rt" selected>Tiempo Real</option>
+                    </select>
+                </form>
+            </div>
+        </div>
+    </nav>
+    <div id="toast-notificacion" class="toast-fixed alert font-weight-bold shadow-lg" role="alert"></div>
+    <div class="container">
+        <div class="alert alert-dark shadow-sm py-2 d-flex justify-content-around flex-wrap mb-4">
+            <div class="meta-ia-box">🌱 Humedad Suelo: <strong id="lbl-saturacion">--%</strong></div>
+            <div class="meta-ia-box">🌧️ Previsión Lluvia AWS: <strong id="lbl-meta-lluvia">0.0 mm</strong></div>
+            <div class="meta-ia-box">🏔️ Caudal Aguas Arriba AWS: <strong id="lbl-meta-arriba">0.00 m³/s</strong></div>
+        </div>
+        <div class="row">
+            <div class="col-lg-8 col-md-12">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card text-white bg-success shadow text-center" id="card-caudal">
+                            <div class="card-body">
+                                <h5>Caudal Actual</h5>
+                                <p><strong id="val-caudal">--- m³∕s</strong></p>
+                                <p><strong id="val-riesgo" class="badge badge-light px-2 py-1 text-dark">CALCULANDO</strong></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card text-white bg-primary shadow text-center">
+                            <div class="card-body">
+                                <h5>Nivel Hidrométrico</h5>
+                                <p>Altura: <strong id="val-altura">--- m</strong></p>
+                                <p>Distancia: <strong id="val-distancia">--- m</strong></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-6 mb-4"><div class="card shadow p-3"><canvas id="chart-caudal"></canvas></div></div>
+                    <div class="col-md-6 mb-4"><div class="card shadow p-3"><canvas id="chart-altura"></canvas></div></div>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-12 mb-4">
+                <div class="contenedor-diagrama">
+                    <div class="diagrama-titulo">CALIBRACIÓN DE HARDWARE</div>
+                    <div class="espacio-grafico">
+                        <div class="viga-puente"></div>
+                        <div class="caja-sensor">MB1010</div>
+                        <div class="ondas-ultrasonido" id="sonar-waves"><div class="onda"></div><div class="onda"></div><div class="onda"></div></div>
+                        <div class="cota-linea" id="linea-vacio" style="left: 20%; top: 43px;"></div>
+                        <div class="cota-txt" id="txt-vacio" style="left: 5%; top: 40%;">Vacío: -- m</div>
+                        <div class="cota-linea" id="linea-agua-cota" style="right: 20%; bottom: 0;"></div>
+                        <div class="cota-txt" id="txt-agua-cota" style="right: 3%; bottom: 15%;">Agua: -- m</div>
+                        <div class="rio-agua" id="water-mass" style="height: 30px;"><span class="text-white font-weight-bold small shadow-sm" id="lbl-diagrama-caudal">-- m³/s</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-2">
+            <div class="col-md-12">
+                <div class="card shadow">
+                    <div class="card-header bg-dark text-white font-weight-bold">Edge Trace Log</div>
+                    <div class="card-body bg-light" style="max-height: 150px; overflow-y: auto;" id="box-logs"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const configChart = (title, color) => ({
+            type: 'line',
+            data: { datasets: [{ label: title, data: [], borderColor: color, tension: 0.1, fill: true }] },
+            options: { responsive: true, scales: { x: { type: 'time', time: { unit: 'second' } } } }
+        });
+        const chartCaudal = new Chart(document.getElementById('chart-caudal').getContext('2d'), configChart('Caudal (m³/s)', '#007bff'));
+        const chartAltura = new Chart(document.getElementById('chart-altura').getContext('2d'), configChart('Altura (m)', '#17a2b8'));
+        let modoActual = 'rt';
+
+        async function procesarYFiltrarGraficas() {
+            const selector = document.getElementById('selector-tiempo');
+            if (!selector) return;
+            modoActual = selector.value;
+
+            if (modoActual === 'rt') {
+                chartCaudal.options.scales.x.time.unit = 'second';
+                chartAltura.options.scales.x.time.unit = 'second';
+                chartCaudal.data.datasets[0].data = [];
+                chartAltura.data.datasets[0].data = [];
+                chartCaudal.update();
+                chartAltura.update();
+                return;
+            }
+
+            chartCaudal.options.scales.x.time.unit = undefined;
+            chartAltura.options.scales.x.time.unit = undefined;
+
+            try {
+                const resp = await fetch('/api/historico?horas=' + modoActual);
+                const datos = await resp.json();
+                chartCaudal.data.datasets[0].data = datos.map(d => ({ x: new Date(d.timestamp.replace(' ', 'T')), y: d.caudal }));
+                chartAltura.data.datasets[0].data = datos.map(d => ({ x: new Date(d.timestamp.replace(' ', 'T')), y: d.altura_agua_m }));
+                chartCaudal.update();
+                chartAltura.update();
+            } catch (e) { console.error('Error cargando histórico:', e); }
+        }
+
+        function redibujarDiagramaFisico(alturaAgua, distanciaVacio, alturaTotalSensor, caudal) {
+            const alturaGraficoPx = 340, margenSuperiorPx = 43; 
+            const totalM = alturaTotalSensor || 3.81; 
+            let porcentajeAgua = Math.min(Math.max((alturaAgua / totalM) * 100, 8), 75);
+            
+            document.getElementById('water-mass').style.height = porcentajeAgua + '%';
+            document.getElementById('lbl-diagrama-caudal').innerText = caudal.toFixed(2) + " m³/s";
+
+            const rioHeightPx = (porcentajeAgua / 100) * alturaGraficoPx;
+            const vacioHeightPx = alturaGraficoPx - rioHeightPx - margenSuperiorPx;
+
+            document.getElementById('linea-vacio').style.height = Math.max(vacioHeightPx, 0) + 'px';
+            document.getElementById('txt-vacio').innerText = 'Vacío: ' + distanciaVacio.toFixed(2) + ' m';
+            document.getElementById('txt-vacio').style.top = (margenSuperiorPx + (vacioHeightPx / 2) - 10) + 'px';
+
+            document.getElementById('linea-agua-cota').style.height = rioHeightPx + 'px';
+            document.getElementById('txt-agua-cota').innerText = 'Agua: ' + alturaAgua.toFixed(2) + ' m';
+            document.getElementById('txt-agua-cota').style.bottom = ((rioHeightPx / 2) - 10) + 'px';
+        }
+
+        function actualizarColorTarjetaRiesgo(riesgo) {
+            const cardCaudal = document.getElementById('card-caudal');
+            cardCaudal.className = "card text-white shadow text-center card-dinamica ";
+            if (riesgo.includes("INUNDACIÓN") || riesgo.includes("ALTO")) cardCaudal.classList.add("bg-danger");
+            else if (riesgo.includes("ALERTA") || riesgo.includes("MEDIO")) cardCaudal.classList.add("bg-warning");
+            else cardCaudal.classList.add("bg-success");
+        }
+
+        async function reentrenarModeloIA() {
+            const toast = document.getElementById('toast-notificacion');
+            toast.style.display = 'block'; toast.className = 'toast-fixed alert alert-info';
+            toast.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Entrenando Bosque IA...';
+            try {
+                const response = await fetch('/retrain', { method: 'POST' });
+                const data = await response.json();
+                if (response.ok) { toast.className = 'toast-fixed alert alert-success'; toast.innerHTML = '<i class="fas fa-check-circle"></i> ' + data.message; }
+                else { toast.className = 'toast-fixed alert alert-warning'; toast.innerHTML = '⚠️ Error: ' + data.message; }
+            } catch (e) { toast.className = 'toast-fixed alert alert-danger'; }
+            setTimeout(() => { $(toast).fadeOut(); }, 4000);
+        }
+
+        async function reiniciarServidorBackend() {
+            if(!confirm("¿Deseas reiniciar de forma limpia FluvialAI Edge?")) return;
+            const toast = document.getElementById('toast-notificacion');
+            toast.style.display = 'block'; toast.className = 'toast-fixed alert alert-danger';
+            toast.innerHTML = '<i class="fas fa-power-off fa-spin"></i> Reiniciando servidor...';
+            try {
+                await fetch('/restart-system', { method: 'POST' });
+                setTimeout(() => { window.location.reload(); }, 4500);
+            } catch (e) { setTimeout(() => { window.location.reload(); }, 4000); }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(protocol + '//' + window.location.host + '/ws');
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                document.getElementById('val-caudal').innerText = data.caudal + " m³∕s";
+                document.getElementById('val-altura').innerText = data.altura_agua_m.toFixed(3) + " m";
+                document.getElementById('val-distancia').innerText = data.distancia_m.toFixed(3) + " m";
+                document.getElementById('val-riesgo').innerText = data.riesgo + " (" + data.probabilidad + "%)";
+                document.getElementById('lbl-saturacion').innerText = data.meta_saturacion + "%";
+                document.getElementById('lbl-meta-lluvia').innerText = data.meta_lluvia_cloud + (typeof data.meta_lluvia_cloud === 'number' ? ' mm' : '');
+                document.getElementById('lbl-meta-arriba').innerText = data.meta_arriba_cloud.toFixed(2) + " m³/s";
+                document.getElementById('box-logs').innerHTML = data.logs_html;
+                
+                redibujarDiagramaFisico(data.altura_agua_m, data.distancia_m, data.meta_altura_sensor_fija, data.caudal);
+                
+                if (modoActual === 'rt') {
+                    const fechaObjeto = new Date(data.timestamp.replace(' ', 'T'));
+                    chartCaudal.data.datasets[0].data.push({ x: fechaObjeto, y: data.caudal });
+                    chartAltura.data.datasets[0].data.push({ x: fechaObjeto, y: data.altura_agua_m });
+                    if(chartCaudal.data.datasets[0].data.length > 30) { chartCaudal.data.datasets[0].data.shift(); chartAltura.data.datasets[0].data.shift(); }
+                    chartCaudal.update(); chartAltura.update();
+                }
+            };
+        });
+    </script>
+</body>
+</html>
